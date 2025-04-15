@@ -8,21 +8,25 @@ from datetime import datetime
 from tqdm import tqdm
 from rich import print
 
-from src.torch_soccer_env import TorchSoccerEnv
+from .torch_soccer_env import TorchSoccerEnv
 from src.policy_network import PolicyNetwork
-from src.config import N_PLAYERS
+from src.config import N_PLAYERS, GAME_DURATION
 from src.visualization import states_to_mp4
 
-VIDEO_PREFIX = f"torch_soccer_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+VIDEO_PREFIX = f"v2_torch_soccer_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 # Hyperparameters
 SIGMA_MULTIPLIER = 0.5
 SAMPLE = True  # Whether to sample from the policy or use the mean
-BATCH_SIZE = 128  # Number of parallel environments to simulate
+BATCH_SIZE = 64  # Number of parallel environments to simulate
 NUM_EPISODES = 10000
 GAMMA = 0.99
 RENDER_EVERY = NUM_EPISODES // 100
 LEARNING_RATE = 1e-3
+
+
+T = GAME_DURATION
+DISCOUNTS = GAMMA ** torch.arange(T, dtype=torch.float32, device='mps').view(T, 1)
 
 def discount_rewards(rewards_tensor: torch.Tensor, gamma: float) -> torch.Tensor:
     """
@@ -37,8 +41,9 @@ def discount_rewards(rewards_tensor: torch.Tensor, gamma: float) -> torch.Tensor
     """
     T = rewards_tensor.size(0)
     # Create discount factors: [1, gamma, gamma^2, ..., gamma^(T-1)]
-    discounts = gamma ** torch.arange(T, dtype=rewards_tensor.dtype, device=rewards_tensor.device).view(T, 1)
-    
+    # discounts = gamma ** torch.arange(T, dtype=rewards_tensor.dtype, device=rewards_tensor.device).view(T, 1)
+    discounts = DISCOUNTS
+
     # Multiply rewards by discount factors and perform a cumulative sum in reversed order
     discounted_temp = rewards_tensor * discounts
     discounted_cumsum = torch.flip(torch.cumsum(torch.flip(discounted_temp, dims=[0]), dim=0), dims=[0])
@@ -126,6 +131,9 @@ def train_self_play(policy_net: PolicyNetwork,
             mu_a, sigma_a = policy_net(team_a_inputs)
             mu_b, sigma_b = policy_net(team_b_inputs)
 
+            sigma_a = torch.clamp(sigma_a, 0, .5)
+            sigma_b = torch.clamp(sigma_b, 0, .5)
+
             if SAMPLE:
                 dist_a = Normal(mu_a, sigma_a * SIGMA_MULTIPLIER)
                 actions_a = dist_a.sample()
@@ -154,7 +162,20 @@ def train_self_play(policy_net: PolicyNetwork,
             states = next_states
             done = done | batch_done
 
+            # Store environment state for rendering (only for first environment)
+            if episode % render_every == 0:
+                rendered_states.append(env.to_pydantic(batch_idx=0))
+
         update_policy(optimizer, log_probs_a_steps, log_probs_b_steps, rewards_steps, gamma, device)
+
+        # Render video of gameplay
+        if episode % render_every == 0:
+            avg_score = torch.mean(env.score, dim=0)
+            rewards_steps = rewards_steps[-1].cpu().detach().numpy()
+            # print(rewards_steps)
+            print(f"Episode {episode+1}/{num_episodes}, Avg Score: {avg_score.cpu().numpy()}, Avg Reward: {np.mean(rewards_steps)}, Avg Abs Reward: {np.mean([np.abs(r) for r in rewards_steps])}")
+            os.makedirs(f"videos/{VIDEO_PREFIX}", exist_ok=True)
+            states_to_mp4(rendered_states, f"videos/{VIDEO_PREFIX}/episode_{episode+1}.mp4")
 
     # Save the final model
     os.makedirs("models", exist_ok=True)

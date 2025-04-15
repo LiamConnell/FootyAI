@@ -1,0 +1,41 @@
+site_name: Footy RL
+site_author: Liam Connell
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+
+plugins:
+  - search
+  - blog:
+      blog_toc: true
+      archive_date_format: yyyy
+      categories_allowed:
+        - Holidays
+        - News
+      authors_profiles: false
+      pagination_per_page: 5
+      archive_pagination_per_page: 10
+      categories_pagination_per_page: 10
+#      post_slugify: !!python/object/apply:ext.slugs.slugify
+#        kwds:
+#          short: true
+
+
+nav:
+  # - About Me: index.md
+  - Project Home: index.md
+  - Design: design/index.md
+  - Experiments: blog/index.md
+  # - Exp: exp/index.md
+  # - Blog: index.md
+  # - Services: index.md
+

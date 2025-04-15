@@ -38,9 +38,6 @@ class GameState(BaseModel):
     score: Tuple[int, int] = Field((0, 0), description="Score of the game (team_a, team_b)")
     time_remaining: float = Field(..., description="Time remaining in the game in seconds")
 
-    # def __str__(self) -> str:
-    #     return f"GameState(team_a={self.team_a}, team_b={self.team_b}, ball={self.ball}, score={self.score}, time_remaining={self.time_remaining})"
-
     @classmethod
     def create_default(cls, random_positions=True) -> 'GameState':
         """Create a default game state with players and ball in starting positions."""
@@ -196,9 +193,6 @@ class GameState(BaseModel):
             score=tuple(new_score),
             time_remaining=self.time_remaining - 1
         )
-
-    # class Config:
-    #     arbitrary_types_allowed = True 
 
     @property
     def team_a_avg_distance_to_ball(self) -> float:

@@ -1,0 +1,26 @@
+# Core dependencies
+gymnasium>=0.28.1  # OpenAI Gym successor
+pydantic>=2.0.0    # Data validation and settings management
+numpy>=1.21.0      # Numerical computations
+matplotlib>=3.5.0  # Visualization
+moviepy>=1.0.3     # Video rendering
+
+# Testing
+pytest>=7.4.0      # Testing framework
+pytest-cov>=4.1.0  # Coverage reporting
+
+# Development
+black>=23.7.0      # Code formatting
+isort>=5.12.0      # Import sorting
+mypy>=1.5.1        # Static type checking
+ruff>=0.0.292      # Fast Python linter 
+
+stable-baselines3
+tensorboard
+pydantic_ai
+
+torch>=2.0.0
+wandb>=0.15.0
+
+
+modal
