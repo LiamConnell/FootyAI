@@ -12,6 +12,8 @@ visualizations/
 **.mp4
 **.zip
 
+!docs/*.mp4
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
