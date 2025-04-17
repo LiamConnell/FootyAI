@@ -5,6 +5,7 @@ from torch.distributions import Normal
 import numpy as np
 from typing import List, Tuple
 from rich import print
+from tqdm import tqdm
 
 from src.v1.soccer_env import SoccerEnv
 from src.config import N_PLAYERS
@@ -16,7 +17,7 @@ def train_self_play(env: SoccerEnv,
                     team_a_net: PolicyNetwork, team_b_net: PolicyNetwork, 
                     optimizer_a: optim.Optimizer, optimizer_b: optim.Optimizer,
                     num_episodes: int, render_every: int, gamma: float = 0.99):
-    for episode in range(num_episodes):
+    for episode in tqdm(range(num_episodes)):
         state, _ = env.reset()
         done = False
 

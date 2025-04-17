@@ -9,7 +9,7 @@ from rich import print
 from gymnasium.vector import SyncVectorEnv
 from tqdm import tqdm
 
-from src.soccer_env import SoccerEnv
+from .soccer_env import SoccerEnv
 from src.config import N_PLAYERS
 from src.visualization import states_to_mp4
 from src.policy_network import PolicyNetwork
