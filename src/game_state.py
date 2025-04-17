@@ -5,6 +5,7 @@ from typing import List, Tuple
 import math
 
 from src.config import (
+    GOAL_HEIGHT,
     N_PLAYERS,
     MIN_KICKING_DISTANCE,
     GAME_DURATION,
@@ -161,16 +162,20 @@ class GameState(BaseModel):
 
         # Check for goals
         new_score = list(self.score)
-        if new_ball_x <= 0 and new_ball_y >= 20 and new_ball_y <= 40:  # Team B scores
+        ball_within_y_goal_range = (
+            (new_ball_y >= (FIELD_HEIGHT - GOAL_HEIGHT) / 2) and 
+            (new_ball_y <= (FIELD_HEIGHT + GOAL_HEIGHT) / 2)
+        )
+        if ball_within_y_goal_range and new_ball_x <= 0:  # Team B scores
             new_score[1] += 1
-            new_ball_x = 50  # Reset to center
-            new_ball_y = 30
+            new_ball_x = FIELD_WIDTH / 2  # Reset to center
+            new_ball_y = FIELD_HEIGHT / 2
             new_ball_vx = 0
             new_ball_vy = 0
-        elif new_ball_x >= FIELD_WIDTH and new_ball_y >= 20 and new_ball_y <= 40:  # Team A scores
+        elif ball_within_y_goal_range and new_ball_x >= FIELD_WIDTH:  # Team A scores
             new_score[0] += 1
-            new_ball_x = 50  # Reset to center
-            new_ball_y = 30
+            new_ball_x = FIELD_WIDTH / 2  # Reset to center
+            new_ball_y = FIELD_HEIGHT / 2
             new_ball_vx = 0
             new_ball_vy = 0
         

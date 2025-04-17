@@ -40,7 +40,7 @@ TEAM_B_START_POSITIONS = [
 ]
 
 # Ball starting position (center)
-BALL_START_POSITION = (50, 30)
+BALL_START_POSITION = (FIELD_WIDTH / 2, FIELD_HEIGHT / 2)
 
 # Visualization settings
 TEAM_A_COLOR = 'red'
