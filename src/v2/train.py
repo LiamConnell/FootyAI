@@ -18,17 +18,13 @@ VIDEO_PREFIX = f"v2_torch_soccer_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 # Hyperparameters
 SIGMA_MULTIPLIER = 0.5
 SAMPLE = True  # Whether to sample from the policy or use the mean
-BATCH_SIZE = 512  # Number of parallel environments to simulate
+BATCH_SIZE = 32  # Number of parallel environments to simulate
 NUM_EPISODES = 10000
 GAMMA = 0.99
 RENDER_EVERY = NUM_EPISODES // 100
 LEARNING_RATE = 1e-3
 
-DEVICE='mps'
-
-
 T = GAME_DURATION
-DISCOUNTS = GAMMA ** torch.arange(T, dtype=torch.float32, device=DEVICE).view(T, 1)
 
 def discount_rewards(rewards_tensor: torch.Tensor, gamma: float) -> torch.Tensor:
     """
@@ -185,6 +181,8 @@ def train_self_play(policy_net: PolicyNetwork,
     print(f"Training complete! Model saved as models/{VIDEO_PREFIX}_final.pt")
 
 def main():
+    global DISCOUNTS
+    
     # Device selection
     if torch.cuda.is_available():
         device = "cuda"
@@ -192,8 +190,9 @@ def main():
         device = "mps"
     else:
         device = "cpu"
-    if DEVICE is not None:  # override
-        device = DEVICE
+    
+    # Create discount factors tensor on the determined device
+    DISCOUNTS = GAMMA ** torch.arange(T, dtype=torch.float32, device=device).view(T, 1)
     print(f"Using device: {device}")
 
     os.makedirs("videos", exist_ok=True)
