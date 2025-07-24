@@ -78,8 +78,9 @@ def update_policy(optimizer: optim.Optimizer,
     discounted_rewards_b = -discounted_rewards
 
     # Sum log probabilities over action dimensions and compute loss
-    loss_a = - (log_probs_a.sum(dim=-1) * discounted_rewards_a).sum(dim=0).mean()
-    loss_b = - (log_probs_b.sum(dim=-1) * discounted_rewards_b).sum(dim=0).mean()
+    # Optimized with einsum for better performance
+    loss_a = -torch.einsum('tbi,tb->', log_probs_a, discounted_rewards_a) / log_probs_a.size(1)
+    loss_b = -torch.einsum('tbi,tb->', log_probs_b, discounted_rewards_b) / log_probs_b.size(1)
 
     policy_loss = loss_a + loss_b
 

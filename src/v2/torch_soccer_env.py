@@ -79,10 +79,13 @@ class TorchSoccerEnv:
 
         # Compute previous average distances from ball to team players.
         # These calculations occur on the pre-existing tensors.
-        team1_to_ball = torch.norm(self.team1_positions - self.ball_position.unsqueeze(1), dim=2)
-        team2_to_ball = torch.norm(self.team2_positions - self.ball_position.unsqueeze(1), dim=2)
-        self.prev_avg_dist_team1.copy_(torch.mean(team1_to_ball, dim=1))
-        self.prev_avg_dist_team2.copy_(torch.mean(team2_to_ball, dim=1))
+        # Optimized with einsum for better performance
+        diff1 = self.team1_positions - self.ball_position.unsqueeze(1)
+        team1_to_ball = torch.sqrt(torch.einsum('bni,bni->bn', diff1, diff1))
+        diff2 = self.team2_positions - self.ball_position.unsqueeze(1)
+        team2_to_ball = torch.sqrt(torch.einsum('bni,bni->bn', diff2, diff2))
+        self.prev_avg_dist_team1.copy_(torch.einsum('bn->b', team1_to_ball) / N_PLAYERS)
+        self.prev_avg_dist_team2.copy_(torch.einsum('bn->b', team2_to_ball) / N_PLAYERS)
 
         # Reset score and game time using in-place operations.
         self.score.zero_()
@@ -121,22 +124,26 @@ class TorchSoccerEnv:
         self.team2_positions[:, :, 1].clamp_(0, FIELD_HEIGHT)
 
         # Calculate distances from players to ball
+        # Optimized with einsum for better performance
         ball_expanded = self.ball_position.unsqueeze(1)  # [batch_size, 1, 2]
-        team1_to_ball = torch.norm(self.team1_positions - ball_expanded, dim=2)
-        team2_to_ball = torch.norm(self.team2_positions - ball_expanded, dim=2)
+        diff1 = self.team1_positions - ball_expanded
+        team1_to_ball = torch.sqrt(torch.einsum('bni,bni->bn', diff1, diff1))
+        diff2 = self.team2_positions - ball_expanded
+        team2_to_ball = torch.sqrt(torch.einsum('bni,bni->bn', diff2, diff2))
 
         # Determine players within kicking distance
         team1_can_kick = team1_to_ball < MIN_KICKING_DISTANCE
         team2_can_kick = team2_to_ball < MIN_KICKING_DISTANCE
 
         # Calculate new ball velocity based on kicks
+        # Optimized with einsum for better performance
         team1_kick_mask = team1_can_kick.float().unsqueeze(-1)
-        team1_total_kicks = torch.sum(team1_kick_mask * team1_kick_vel, dim=1)
-        team1_kickers_count = torch.sum(team1_kick_mask, dim=(1, 2))
+        team1_total_kicks = torch.einsum('bni,bni->bi', team1_kick_mask, team1_kick_vel)
+        team1_kickers_count = torch.einsum('bni->b', team1_kick_mask)
 
         team2_kick_mask = team2_can_kick.float().unsqueeze(-1)
-        team2_total_kicks = torch.sum(team2_kick_mask * team2_kick_vel, dim=1)
-        team2_kickers_count = torch.sum(team2_kick_mask, dim=(1, 2))
+        team2_total_kicks = torch.einsum('bni,bni->bi', team2_kick_mask, team2_kick_vel)
+        team2_kickers_count = torch.einsum('bni->b', team2_kick_mask)
 
         total_kicks = team1_total_kicks + team2_total_kicks
         total_kickers = team1_kickers_count + team2_kickers_count
@@ -185,8 +192,8 @@ class TorchSoccerEnv:
         scored_mask = torch.logical_or(team1_scored, team2_scored)
         non_scoring_mask = (~scored_mask).float()
 
-        avg_dist_team1 = torch.mean(team1_to_ball, dim=1)
-        avg_dist_team2 = torch.mean(team2_to_ball, dim=1)
+        avg_dist_team1 = torch.einsum('bn->b', team1_to_ball) / N_PLAYERS
+        avg_dist_team2 = torch.einsum('bn->b', team2_to_ball) / N_PLAYERS
         delta_dist_team1 = self.prev_avg_dist_team1 - avg_dist_team1
         delta_dist_team2 = self.prev_avg_dist_team2 - avg_dist_team2
         distance_shaping_reward = delta_dist_team1 - delta_dist_team2
