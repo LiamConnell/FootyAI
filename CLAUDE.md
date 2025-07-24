@@ -43,6 +43,16 @@ ruff src/                 # Linting
 ```bash
 python -m src.v2.train    # Run local training
 modal run modal_run.py    # Run on Modal with GPU
+uv run python deploy_vertex_ai.py  # Deploy to Vertex AI
+```
+
+### Vertex AI Deployment
+```bash
+# Deploy and monitor
+uv run python deploy_vertex_ai.py
+gcloud ai custom-jobs describe <JOB_ID> --format="value(state)"  # Check status
+gcloud logging read 'resource.labels.job_id="<JOB_ID>"' --project learnagentspace --limit 100  # View logs
+gsutil -m cp -r gs://footyai/videos/v2_torch_soccer_<TIMESTAMP>/ videos/  # Download videos
 ```
 
 ### Documentation
@@ -84,3 +94,11 @@ Tests cover:
 - Environment reset and step functions
 - Visualization rendering
 - Core game logic and rules
+
+## Experiment Issues
+
+Issues labeled `experiment` document training runs and experimental configurations. They should include:
+- Job ID and monitoring commands
+- Complete deployment configuration (epochs, batch size, machine type)  
+- Git commit hash for reproducibility
+- Expected outcome and current status

@@ -21,6 +21,8 @@ pydantic_ai
 
 torch>=2.0.0
 wandb>=0.15.0
-
+google-cloud-storage>=2.10.0
+tqdm
+rich
 
 modal
