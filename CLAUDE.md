@@ -42,7 +42,6 @@ ruff src/                 # Linting
 ### Training
 ```bash
 python -m src.v2.train    # Run local training
-modal run modal_run.py    # Run on Modal with GPU
 uv run python deploy_vertex_ai.py  # Deploy to Vertex AI
 ```
 
@@ -85,7 +84,6 @@ Core dependencies managed in `requirements.txt`:
 - PyTorch for neural networks and vectorized computation
 - Gymnasium for RL environment interface
 - Pydantic for data validation
-- Modal for cloud GPU training
 - MkDocs for documentation
 
 ## Testing Strategy
