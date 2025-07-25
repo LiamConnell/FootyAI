@@ -20,6 +20,7 @@ models/
 
 # Generated videos and media
 videos/
+docs/
 *.mp4
 *.avi
 *.mov

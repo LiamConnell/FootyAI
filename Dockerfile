@@ -1,4 +1,8 @@
-FROM python:3.11-slim
+FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
+
+# Set timezone to avoid interactive prompt
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -13,9 +17,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code
+# Copy only necessary files
 COPY src/ ./src/
-COPY . .
+COPY job_config.yaml deploy_vertex_ai.py ./
 
 # Set environment variables for GCS
 ENV PYTHONPATH=/app
