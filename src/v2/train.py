@@ -53,7 +53,7 @@ T = GAME_DURATION
 
 def discount_rewards(rewards_tensor: torch.Tensor, gamma: float) -> torch.Tensor:
     """
-    Compute discounted rewards in a fully vectorized way.
+    Compute discounted rewards.
     
     Args:
         rewards_tensor: Tensor of shape [T, batch_size] with rewards per time step.
@@ -63,16 +63,11 @@ def discount_rewards(rewards_tensor: torch.Tensor, gamma: float) -> torch.Tensor
         Tensor of shape [T, batch_size] with discounted rewards.
     """
     T = rewards_tensor.size(0)
-    # Create discount factors: [1, gamma, gamma^2, ..., gamma^(T-1)]
-    # discounts = gamma ** torch.arange(T, dtype=rewards_tensor.dtype, device=rewards_tensor.device).view(T, 1)
-    discounts = DISCOUNTS
-
-    # Multiply rewards by discount factors and perform a cumulative sum in reversed order
-    discounted_temp = rewards_tensor * discounts
-    discounted_cumsum = torch.flip(torch.cumsum(torch.flip(discounted_temp, dims=[0]), dim=0), dims=[0])
-    
-    # Divide by the discount factors to recover the proper discounted sums
-    discounted_rewards = discounted_cumsum / discounts
+    discounted_rewards = torch.zeros_like(rewards_tensor)
+    running_add = torch.zeros(rewards_tensor.size(1), device=rewards_tensor.device)
+    for t in reversed(range(T)):
+        running_add = running_add * gamma + rewards_tensor[t]
+        discounted_rewards[t] = running_add
     return discounted_rewards
 
 def update_policy(optimizer: optim.Optimizer,
@@ -115,6 +110,7 @@ def update_policy(optimizer: optim.Optimizer,
 
 def train_self_play(policy_net: PolicyNetwork,
                     optimizer: optim.Optimizer,
+                    scheduler: optim.lr_scheduler._LRScheduler,
                     batch_size: int,
                     num_episodes: int,
                     render_every: int,
@@ -154,9 +150,6 @@ def train_self_play(policy_net: PolicyNetwork,
 
             mu_a, sigma_a = policy_net(team_a_inputs)
             mu_b, sigma_b = policy_net(team_b_inputs)
-
-            sigma_a = torch.clamp(sigma_a, 0, .5)
-            sigma_b = torch.clamp(sigma_b, 0, .5)
 
             if SAMPLE:
                 dist_a = Normal(mu_a, sigma_a * SIGMA_MULTIPLIER)
@@ -209,12 +202,13 @@ def train_self_play(policy_net: PolicyNetwork,
             gcs_video_path = f"videos/{VIDEO_PREFIX}/episode_{episode+1}.mp4"
             upload_to_gcs(local_video_path, gcs_video_path)
 
+        scheduler.step()
+
     # Save the final model to GCS
     model_path = save_model_to_gcs(policy_net.state_dict(), f"{VIDEO_PREFIX}_final.pt")
     print(f"Training complete! Model saved to {model_path}")
 
 def main():
-    global DISCOUNTS
     
     # Device selection
     if torch.cuda.is_available():
@@ -224,8 +218,6 @@ def main():
     else:
         device = "cpu"
     
-    # Create discount factors tensor on the determined device
-    DISCOUNTS = GAMMA ** torch.arange(T, dtype=torch.float32, device=device).view(T, 1)
     print(f"Using device: {device}")
 
     os.makedirs("videos", exist_ok=True)
@@ -239,10 +231,12 @@ def main():
 
     policy_net = PolicyNetwork(input_dim, hidden_dim, output_dim).to(device)
     optimizer = optim.Adam(policy_net.parameters(), lr=LEARNING_RATE)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.1)
 
     train_self_play(
         policy_net=policy_net,
         optimizer=optimizer,
+        scheduler=scheduler,
         batch_size=BATCH_SIZE,
         num_episodes=NUM_EPISODES,
         render_every=RENDER_EVERY,
