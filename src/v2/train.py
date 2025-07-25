@@ -7,6 +7,8 @@ import numpy as np
 from datetime import datetime
 from tqdm import tqdm
 from rich import print
+from google.cloud import storage
+from pathlib import Path
 
 from .torch_soccer_env import TorchSoccerEnv
 from src.policy_network import PolicyNetwork
@@ -14,6 +16,29 @@ from src.config import N_PLAYERS, GAME_DURATION
 from src.visualization import states_to_mp4
 
 VIDEO_PREFIX = f"v2_torch_soccer_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+# GCS Configuration
+GCS_BUCKET = os.getenv("GCS_BUCKET", "footyai")
+GCS_PROJECT = os.getenv("GCS_PROJECT", "learnagentspace")
+
+def upload_to_gcs(local_path: str, gcs_path: str):
+    """Upload a file to Google Cloud Storage."""
+    try:
+        client = storage.Client()
+        bucket = client.bucket(GCS_BUCKET)
+        blob = bucket.blob(gcs_path)
+        blob.upload_from_filename(local_path)
+        print(f"Uploaded {local_path} to gs://{GCS_BUCKET}/{gcs_path}")
+    except Exception as e:
+        print(f"Failed to upload {local_path} to GCS: {e}")
+
+def save_model_to_gcs(model_state_dict, model_name: str):
+    """Save model checkpoint to GCS."""
+    local_path = f"/tmp/{model_name}"
+    torch.save(model_state_dict, local_path)
+    gcs_path = f"models/{model_name}"
+    upload_to_gcs(local_path, gcs_path)
+    return f"gs://{GCS_BUCKET}/{gcs_path}"
 
 # Hyperparameters
 SIGMA_MULTIPLIER = 0.5
@@ -78,8 +103,9 @@ def update_policy(optimizer: optim.Optimizer,
     discounted_rewards_b = -discounted_rewards
 
     # Sum log probabilities over action dimensions and compute loss
-    loss_a = - (log_probs_a.sum(dim=-1) * discounted_rewards_a).sum(dim=0).mean()
-    loss_b = - (log_probs_b.sum(dim=-1) * discounted_rewards_b).sum(dim=0).mean()
+    # Optimized with einsum for better performance
+    loss_a = -torch.einsum('tbi,tb->', log_probs_a, discounted_rewards_a) / log_probs_a.size(1)
+    loss_b = -torch.einsum('tbi,tb->', log_probs_b, discounted_rewards_b) / log_probs_b.size(1)
 
     policy_loss = loss_a + loss_b
 
@@ -172,13 +198,20 @@ def train_self_play(policy_net: PolicyNetwork,
             rewards_steps = rewards_steps[-1].cpu().detach().numpy()
             # print(rewards_steps)
             print(f"Episode {episode+1}/{num_episodes}, Avg Score: {avg_score.cpu().numpy()}, Avg Reward: {np.mean(rewards_steps)}, Avg Abs Reward: {np.mean([np.abs(r) for r in rewards_steps])}")
-            os.makedirs(f"videos/{VIDEO_PREFIX}", exist_ok=True)
-            states_to_mp4(rendered_states, f"videos/{VIDEO_PREFIX}/episode_{episode+1}.mp4")
+            
+            # Save video locally then upload to GCS
+            local_video_dir = f"/tmp/videos/{VIDEO_PREFIX}"
+            os.makedirs(local_video_dir, exist_ok=True)
+            local_video_path = f"{local_video_dir}/episode_{episode+1}.mp4"
+            states_to_mp4(rendered_states, local_video_path)
+            
+            # Upload to GCS
+            gcs_video_path = f"videos/{VIDEO_PREFIX}/episode_{episode+1}.mp4"
+            upload_to_gcs(local_video_path, gcs_video_path)
 
-    # Save the final model
-    os.makedirs("models", exist_ok=True)
-    torch.save(policy_net.state_dict(), f"models/{VIDEO_PREFIX}_final.pt")
-    print(f"Training complete! Model saved as models/{VIDEO_PREFIX}_final.pt")
+    # Save the final model to GCS
+    model_path = save_model_to_gcs(policy_net.state_dict(), f"{VIDEO_PREFIX}_final.pt")
+    print(f"Training complete! Model saved to {model_path}")
 
 def main():
     global DISCOUNTS

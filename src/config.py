@@ -1,7 +1,7 @@
 # Game settings
 N_PLAYERS = 5
 MIN_KICKING_DISTANCE = 3
-GAME_DURATION = 200  # seconds
+GAME_DURATION = 90  # seconds
 GAME_LENGTH = GAME_DURATION
 
 # Physics settings
