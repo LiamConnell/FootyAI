@@ -45,8 +45,8 @@ class TorchSoccerEnv:
         self.game_time = torch.zeros(self.batch_size, device=self.device)
 
         # Pre-allocate tensors to store previous distances
-        self.prev_avg_dist_team1 = torch.empty(self.batch_size, device=self.device)
-        self.prev_avg_dist_team2 = torch.empty(self.batch_size, device=self.device)
+        self.prev_min_dist_team1 = torch.empty(self.batch_size, device=self.device)
+        self.prev_min_dist_team2 = torch.empty(self.batch_size, device=self.device)
 
         # Run an initial reset so that state tensors hold a valid initial state.
         self.reset()
@@ -84,8 +84,8 @@ class TorchSoccerEnv:
         team1_to_ball = torch.sqrt(torch.einsum('bni,bni->bn', diff1, diff1))
         diff2 = self.team2_positions - self.ball_position.unsqueeze(1)
         team2_to_ball = torch.sqrt(torch.einsum('bni,bni->bn', diff2, diff2))
-        self.prev_avg_dist_team1.copy_(torch.einsum('bn->b', team1_to_ball) / N_PLAYERS)
-        self.prev_avg_dist_team2.copy_(torch.einsum('bn->b', team2_to_ball) / N_PLAYERS)
+        self.prev_min_dist_team1, _ = torch.min(team1_to_ball, dim=1)
+        self.prev_min_dist_team2, _ = torch.min(team2_to_ball, dim=1)
 
         # Reset score and game time using in-place operations.
         self.score.zero_()
@@ -165,10 +165,8 @@ class TorchSoccerEnv:
         y_out_top = self.ball_position[:, 1] < 0
         y_out_bottom = self.ball_position[:, 1] > FIELD_HEIGHT
 
-        # self.ball_velocity[x_out_left | x_out_right, 0].mul_(-1)
-        # self.ball_velocity[y_out_top | y_out_bottom, 1].mul_(-1)
-        self.ball_velocity[x_out_left | x_out_right, 0] = -1 * self.ball_velocity[x_out_left | x_out_right, 0]
-        self.ball_velocity[y_out_top | y_out_bottom, 1] = -1 * self.ball_velocity[y_out_top | y_out_bottom, 1].mul_(-1)
+        self.ball_velocity[x_out_left | x_out_right, 0].mul_(-1)
+        self.ball_velocity[y_out_top | y_out_bottom, 1].mul_(-1)
 
         self.ball_position[:, 0].clamp_(0, FIELD_WIDTH)
         self.ball_position[:, 1].clamp_(0, FIELD_HEIGHT)
@@ -192,18 +190,20 @@ class TorchSoccerEnv:
         scored_mask = torch.logical_or(team1_scored, team2_scored)
         non_scoring_mask = (~scored_mask).float()
 
-        avg_dist_team1 = torch.einsum('bn->b', team1_to_ball) / N_PLAYERS
-        avg_dist_team2 = torch.einsum('bn->b', team2_to_ball) / N_PLAYERS
-        delta_dist_team1 = self.prev_avg_dist_team1 - avg_dist_team1
-        delta_dist_team2 = self.prev_avg_dist_team2 - avg_dist_team2
+        # Reward based on the minimum distance to the ball
+        min_dist_team1, _ = torch.min(team1_to_ball, dim=1)
+        min_dist_team2, _ = torch.min(team2_to_ball, dim=1)
+
+        # Calculate the change in minimum distance from the previous step
+        delta_dist_team1 = self.prev_min_dist_team1 - min_dist_team1
+        delta_dist_team2 = self.prev_min_dist_team2 - min_dist_team2
+
         distance_shaping_reward = delta_dist_team1 - delta_dist_team2
         reward.add_(distance_shaping_reward * CLOSENESS_REWARD_MULTIPLIER * non_scoring_mask)
 
-        reward.add_(((team1_kickers_count > 0).float() - (team2_kickers_count > 0).float()) * KICK_MULTIPLIER)
-
-        # Update previous distances
-        self.prev_avg_dist_team1.copy_(avg_dist_team1)
-        self.prev_avg_dist_team2.copy_(avg_dist_team2)
+        # Update previous minimum distances
+        self.prev_min_dist_team1 = min_dist_team1
+        self.prev_min_dist_team2 = min_dist_team2
 
         # Reset ball if a goal is scored.
         scored = team1_scored | team2_scored
