@@ -109,7 +109,7 @@ PolicyNetwork = EnhancedPolicyNetwork
 
 class PlayerPolicyNetwork(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_hidden_layers: int = 4):
-        super(EnhancedPolicyNetwork, self).__init__()
+        super(PlayerPolicyNetwork, self).__init__()
 
         # Dynamically create hidden layers
         layers = []
