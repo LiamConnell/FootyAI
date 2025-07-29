@@ -49,9 +49,20 @@ uv run python deploy_vertex_ai.py  # Deploy to Vertex AI
 ```bash
 # Deploy and monitor
 uv run python deploy_vertex_ai.py
-gcloud ai custom-jobs describe <JOB_ID> --format="value(state)"  # Check status
-gcloud logging read 'resource.labels.job_id="<JOB_ID>"' --project learnagentspace --limit 100  # View logs
-gsutil -m cp -r gs://footyai/videos/v2_torch_soccer_<TIMESTAMP>/ videos/  # Download videos
+
+# Check job status (use display name from deployment output)
+gcloud ai custom-jobs list --region=us-central1 --filter="displayName:<JOB_DISPLAY_NAME>" --format="table(name,displayName,state,createTime)"
+
+# Alternative: Check status by job ID (requires full resource name)
+gcloud ai custom-jobs describe projects/371617986509/locations/us-central1/customJobs/<NUMERIC_JOB_ID> --format="value(state)"
+
+# View logs
+gcloud logging read 'resource.labels.job_id="<NUMERIC_JOB_ID>"' --project learnagentspace --limit 100
+or 
+gcloud logging read 'resource.labels.job_id="<NUMERIC_JOB_ID>" timestamp>="2025-07-25T01:06:33.966480Z"' --project learnagentspace --limit 100
+
+# Download videos
+gsutil -m cp -r gs://footyai/videos/v2_torch_soccer_<TIMESTAMP>/ videos/
 ```
 
 ### Documentation

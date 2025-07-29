@@ -64,18 +64,13 @@ class TorchSoccerEnv:
         self.ball_position.copy_(self.center)
         self.ball_velocity.zero_()
 
-        # Initialize players with random positions across the entire field.
-        # Instead of allocating new tensors, we create random values and copy them into the pre-allocated buffers.
-        temp_team1 = torch.rand((self.batch_size, N_PLAYERS, 2), device=self.device)
-        # Scale x-coordinates by FIELD_WIDTH and y-coordinates by FIELD_HEIGHT
-        temp_team1[:, :, 0].mul_(FIELD_WIDTH)
-        temp_team1[:, :, 1].mul_(FIELD_HEIGHT)
-        self.team1_positions.copy_(temp_team1)
-
-        temp_team2 = torch.rand((self.batch_size, N_PLAYERS, 2), device=self.device)
-        temp_team2[:, :, 0].mul_(FIELD_WIDTH)
-        temp_team2[:, :, 1].mul_(FIELD_HEIGHT)
-        self.team2_positions.copy_(temp_team2)
+        # Initialize players using proper soccer starting positions
+        team1_starts = torch.tensor(TEAM_A_START_POSITIONS, device=self.device, dtype=torch.float32)
+        team2_starts = torch.tensor(TEAM_B_START_POSITIONS, device=self.device, dtype=torch.float32)
+        
+        # Repeat starting positions for all batches
+        self.team1_positions.copy_(team1_starts.unsqueeze(0).expand(self.batch_size, -1, -1))
+        self.team2_positions.copy_(team2_starts.unsqueeze(0).expand(self.batch_size, -1, -1))
 
         # Compute previous average distances from ball to team players.
         # These calculations occur on the pre-existing tensors.
@@ -219,18 +214,33 @@ class TorchSoccerEnv:
 
     def _get_observation(self):
         """
-        Construct and return the observation tensor.
+        Construct and return the observation tensor with normalization.
         
         Returns:
-            observation: Tensor of shape [batch_size, observation_size]
+            observation: Tensor of shape [batch_size, observation_size] with values in [-1, 1]
         """
+        # Normalize positions to [-1, 1] range
+        norm_team1_pos = (self.team1_positions / torch.tensor([FIELD_WIDTH/2, FIELD_HEIGHT/2], device=self.device)) - 1
+        norm_team2_pos = (self.team2_positions / torch.tensor([FIELD_WIDTH/2, FIELD_HEIGHT/2], device=self.device)) - 1
+        norm_ball_pos = (self.ball_position / torch.tensor([FIELD_WIDTH/2, FIELD_HEIGHT/2], device=self.device)) - 1
+        
+        # Normalize velocities (assume max velocity is reasonable for normalization)
+        max_vel = max(MAX_VELOCITY, MAX_KICK_FORCE)
+        norm_ball_vel = self.ball_velocity / max_vel
+        
+        # Normalize scores (assuming max reasonable score difference is 10)
+        norm_score = self.score / 10.0
+        
+        # Normalize game time to [0, 1]
+        norm_time = self.game_time.unsqueeze(-1) / GAME_LENGTH
+        
         obs_components = [
-            self.team1_positions.reshape(self.batch_size, -1),       # [batch_size, n_players*2]
-            self.team2_positions.reshape(self.batch_size, -1),       # [batch_size, n_players*2]
-            self.ball_position,                                      # [batch_size, 2]
-            self.ball_velocity,                                      # [batch_size, 2]
-            self.score,                                              # [batch_size, 2]
-            self.game_time.unsqueeze(-1)                             # [batch_size, 1]
+            norm_team1_pos.reshape(self.batch_size, -1),            # [batch_size, n_players*2]
+            norm_team2_pos.reshape(self.batch_size, -1),            # [batch_size, n_players*2]
+            norm_ball_pos,                                          # [batch_size, 2]
+            norm_ball_vel,                                          # [batch_size, 2]
+            norm_score,                                             # [batch_size, 2]
+            norm_time                                               # [batch_size, 1]
         ]
         return torch.cat(obs_components, dim=1)
     

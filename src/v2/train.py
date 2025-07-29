@@ -47,7 +47,7 @@ BATCH_SIZE = 32  # Number of parallel environments to simulate
 NUM_EPISODES = 10000
 GAMMA = 0.99
 RENDER_EVERY = NUM_EPISODES // 100
-LEARNING_RATE = 1e-3
+LEARNING_RATE = 1e-4  # Reduced for more stable learning
 
 T = GAME_DURATION
 
@@ -75,7 +75,8 @@ def discount_rewards(rewards_tensor: torch.Tensor, gamma: float) -> torch.Tensor
     discounted_rewards = discounted_cumsum / discounts
     return discounted_rewards
 
-def update_policy(optimizer: optim.Optimizer,
+def update_policy(policy_net: PolicyNetwork,
+                  optimizer: optim.Optimizer,
                   log_probs_a_steps: list,
                   log_probs_b_steps: list,
                   rewards_steps: list,
@@ -111,6 +112,10 @@ def update_policy(optimizer: optim.Optimizer,
 
     optimizer.zero_grad()
     policy_loss.backward()
+    
+    # Add gradient clipping to prevent exploding gradients
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), max_norm=1.0)
+    
     optimizer.step()
 
 def train_self_play(policy_net: PolicyNetwork,
@@ -155,8 +160,7 @@ def train_self_play(policy_net: PolicyNetwork,
             mu_a, sigma_a = policy_net(team_a_inputs)
             mu_b, sigma_b = policy_net(team_b_inputs)
 
-            sigma_a = torch.clamp(sigma_a, 0, .5)
-            sigma_b = torch.clamp(sigma_b, 0, .5)
+            # Let the network learn proper exploration - removed sigma clamping
 
             if SAMPLE:
                 dist_a = Normal(mu_a, sigma_a * SIGMA_MULTIPLIER)
@@ -190,7 +194,7 @@ def train_self_play(policy_net: PolicyNetwork,
             if episode % render_every == 0:
                 rendered_states.append(env.to_pydantic(batch_idx=0))
 
-        update_policy(optimizer, log_probs_a_steps, log_probs_b_steps, rewards_steps, gamma, device)
+        update_policy(policy_net, optimizer, log_probs_a_steps, log_probs_b_steps, rewards_steps, gamma, device)
 
         # Render video of gameplay
         if episode % render_every == 0:
