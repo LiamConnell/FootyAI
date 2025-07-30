@@ -79,8 +79,8 @@ def states_to_mp4(states: list[GameState], path: str, fps: int = 10):
     # Save the animation with MPEG4 codec (widely compatible)
     writer = animation.FFMpegWriter(
         fps=fps,
-        codec='mpeg4',
-        bitrate=1800
+        # codec='mpeg4',
+        # bitrate=1800
     )
     anim.save(path, writer=writer, dpi=FIGURE_DPI)
 
