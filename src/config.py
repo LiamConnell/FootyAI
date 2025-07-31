@@ -3,6 +3,7 @@ N_PLAYERS = 5
 MIN_KICKING_DISTANCE = 3
 GAME_DURATION = 90  # seconds
 GAME_LENGTH = GAME_DURATION
+RANDOM_INITIALIZATION = True  # If True, randomize player starting positions each reset
 
 # Physics settings
 MAX_VELOCITY = 2.0

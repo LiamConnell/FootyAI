@@ -17,7 +17,8 @@ from src.config import (
     TEAM_B_START_POSITIONS,
     BALL_START_POSITION, 
     MAX_VELOCITY, 
-    MAX_KICK_FORCE
+    MAX_KICK_FORCE,
+    RANDOM_INITIALIZATION
 )
 
 CLOSENESS_REWARD_MULTIPLIER = 0.3
@@ -48,8 +49,29 @@ class TorchSoccerEnv:
         self.prev_avg_dist_team1 = torch.empty(self.batch_size, device=self.device)
         self.prev_avg_dist_team2 = torch.empty(self.batch_size, device=self.device)
 
+        # Initialize players using proper soccer starting positions
+        self.team1_starts = torch.tensor(TEAM_A_START_POSITIONS, device=self.device, dtype=torch.float32)
+        self.team2_starts = torch.tensor(TEAM_B_START_POSITIONS, device=self.device, dtype=torch.float32)
+
         # Run an initial reset so that state tensors hold a valid initial state.
         self.reset()
+
+    def _generate_random_positions(self):
+        """
+        Generate random starting positions for both teams.
+        Team 1 gets left half, Team 2 gets right half of the field.
+        """
+        # Team 1: left half of field (x: 5 to FIELD_WIDTH/2 - 5)
+        team1_x = torch.rand(self.batch_size, N_PLAYERS, device=self.device) * (FIELD_WIDTH/2 - 10) + 5
+        team1_y = torch.rand(self.batch_size, N_PLAYERS, device=self.device) * (FIELD_HEIGHT - 10) + 5
+        self.team1_positions[:, :, 0] = team1_x
+        self.team1_positions[:, :, 1] = team1_y
+        
+        # Team 2: right half of field (x: FIELD_WIDTH/2 + 5 to FIELD_WIDTH - 5)
+        team2_x = torch.rand(self.batch_size, N_PLAYERS, device=self.device) * (FIELD_WIDTH/2 - 10) + FIELD_WIDTH/2 + 5
+        team2_y = torch.rand(self.batch_size, N_PLAYERS, device=self.device) * (FIELD_HEIGHT - 10) + 5
+        self.team2_positions[:, :, 0] = team2_x
+        self.team2_positions[:, :, 1] = team2_y
 
     def reset(self):
         """
@@ -64,13 +86,12 @@ class TorchSoccerEnv:
         self.ball_position.copy_(self.center)
         self.ball_velocity.zero_()
 
-        # Initialize players using proper soccer starting positions
-        team1_starts = torch.tensor(TEAM_A_START_POSITIONS, device=self.device, dtype=torch.float32)
-        team2_starts = torch.tensor(TEAM_B_START_POSITIONS, device=self.device, dtype=torch.float32)
-        
-        # Repeat starting positions for all batches
-        self.team1_positions.copy_(team1_starts.unsqueeze(0).expand(self.batch_size, -1, -1))
-        self.team2_positions.copy_(team2_starts.unsqueeze(0).expand(self.batch_size, -1, -1))
+        # Set starting positions for all batches
+        if RANDOM_INITIALIZATION:
+            self._generate_random_positions()
+        else:
+            self.team1_positions.copy_(self.team1_starts.unsqueeze(0).expand(self.batch_size, -1, -1))
+            self.team2_positions.copy_(self.team2_starts.unsqueeze(0).expand(self.batch_size, -1, -1))
 
         # Compute previous average distances from ball to team players.
         # These calculations occur on the pre-existing tensors.
