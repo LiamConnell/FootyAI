@@ -6,17 +6,20 @@ ENV TZ=UTC
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    libx264-dev \
     git \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install uv for faster dependency management
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
+# Copy requirements and install Python dependencies with uv
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN uv pip install --system -r requirements.txt
 
 # Copy only necessary files
 COPY src/ ./src/
