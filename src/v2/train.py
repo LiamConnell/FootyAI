@@ -192,15 +192,19 @@ def train_self_play(policy_net: PolicyNetwork,
             # print(rewards_steps)
             print(f"Episode {episode+1}/{num_episodes}, Avg Score: {avg_score.cpu().numpy()}, Avg Reward: {np.mean(rewards_steps)}, Avg Abs Reward: {np.mean([np.abs(r) for r in rewards_steps])}")
             
-            # Save video locally then upload to GCS
-            local_video_dir = f"/tmp/videos/{VIDEO_PREFIX}"
-            os.makedirs(local_video_dir, exist_ok=True)
-            local_video_path = f"{local_video_dir}/episode_{episode+1}.mp4"
-            states_to_mp4(rendered_states, local_video_path)
-            
-            # Upload to GCS
-            gcs_video_path = f"videos/{VIDEO_PREFIX}/episode_{episode+1}.mp4"
-            upload_to_gcs(local_video_path, gcs_video_path)
+            # Save animation locally then upload to GCS
+            try:
+                local_video_dir = f"/tmp/videos/{VIDEO_PREFIX}"
+                os.makedirs(local_video_dir, exist_ok=True)
+                local_video_path = f"{local_video_dir}/episode_{episode+1}.gif"
+                actual_path = states_to_mp4(rendered_states, local_video_path)
+                
+                # Upload to GCS (actual_path will be .gif)
+                gcs_video_path = f"videos/{VIDEO_PREFIX}/episode_{episode+1}.gif"
+                upload_to_gcs(actual_path, gcs_video_path)
+                print(f"Animation saved successfully: episode_{episode+1}.gif")
+            except Exception as e:
+                print(f"Animation generation failed (continuing training): {e}")
 
         scheduler.step()
 

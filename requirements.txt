@@ -2,8 +2,7 @@
 gymnasium>=0.28.1  # OpenAI Gym successor
 pydantic>=2.0.0    # Data validation and settings management
 numpy>=1.21.0      # Numerical computations
-matplotlib>=3.5.0  # Visualization
-moviepy>=1.0.3     # Video rendering
+matplotlib>=3.5.0  # Visualization (includes Pillow for GIF generation)
 
 # Testing
 pytest>=7.4.0      # Testing framework

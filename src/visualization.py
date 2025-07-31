@@ -26,8 +26,8 @@ from src.config import (
     FIGURE_DPI
 )
 
-def states_to_mp4(states: list[GameState], path: str, fps: int = 10):
-    """Convert a list of game states to an MP4 video."""
+def states_to_mp4(states: list[GameState], path: str, fps: int = 10) -> str:
+    """Convert a list of game states to a GIF animation."""
     fig, ax = plt.subplots()
     ax.set_xlim(0, FIELD_WIDTH )
     ax.set_ylim(0, FIELD_HEIGHT)
@@ -76,15 +76,18 @@ def states_to_mp4(states: list[GameState], path: str, fps: int = 10):
         blit=True
     )
     
-    # Save the animation with MPEG4 codec (widely compatible)
-    writer = animation.FFMpegWriter(
-        fps=fps,
-        codec='mpeg4',
-        bitrate=1800
-    )
-    anim.save(path, writer=writer, dpi=FIGURE_DPI)
-
-    plt.close(fig)
+    # Use PillowWriter directly for reliable GIF output
+    try:
+        writer = animation.PillowWriter(fps=fps)
+        gif_path = path.replace('.mp4', '.gif')
+        anim.save(gif_path, writer=writer, dpi=FIGURE_DPI)
+        print(f"Animation saved as GIF: {gif_path}")
+        plt.close(fig)
+        return gif_path
+    except Exception as e:
+        print(f"PillowWriter failed: {e}")
+        plt.close(fig)
+        raise
 
 def _draw_field_on_ax(ax):
     """Draw the soccer field on a given axis."""
