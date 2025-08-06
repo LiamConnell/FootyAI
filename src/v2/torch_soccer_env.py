@@ -186,10 +186,9 @@ class TorchSoccerEnv:
         y_out_top = self.ball_position[:, 1] < 0
         y_out_bottom = self.ball_position[:, 1] > FIELD_HEIGHT
 
-        # self.ball_velocity[x_out_left | x_out_right, 0].mul_(-1)
-        # self.ball_velocity[y_out_top | y_out_bottom, 1].mul_(-1)
-        self.ball_velocity[x_out_left | x_out_right, 0] = -1 * self.ball_velocity[x_out_left | x_out_right, 0]
-        self.ball_velocity[y_out_top | y_out_bottom, 1] = -1 * self.ball_velocity[y_out_top | y_out_bottom, 1].mul_(-1)
+        # Bounce off walls - reverse velocity components
+        self.ball_velocity[x_out_left | x_out_right, 0] *= -1
+        self.ball_velocity[y_out_top | y_out_bottom, 1] *= -1
 
         self.ball_position[:, 0].clamp_(0, FIELD_WIDTH)
         self.ball_position[:, 1].clamp_(0, FIELD_HEIGHT)
@@ -337,8 +336,8 @@ if __name__ == "__main__":
     from tqdm import tqdm
     from src.visualization import states_to_mp4
     
-    # Create an environment with batch size of 2 and 3 players per team
-    env = TorchSoccerEnv(batch_size=2, n_players=3, device="cpu")
+    # Create an environment with batch size of 2
+    env = TorchSoccerEnv(batch_size=2, device="cpu")
     
     # Reset the environment
     obs = env.reset()
@@ -347,7 +346,7 @@ if __name__ == "__main__":
     states = []
     for i in tqdm(range(100)):
         # Random actions: [move_x, move_y, kick_x, kick_y] for each player on both teams
-        random_actions = torch.randn(2, 6, 4) * 2.0  # Scale for more movement
+        random_actions = torch.randn(2, N_PLAYERS*2, 4) * 2.0  # Scale for more movement
         
         # Take a step
         obs, reward, done, _ = env.step(random_actions)
