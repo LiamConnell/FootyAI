@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .torch_soccer_env import TorchSoccerEnv
 from src.policy_network import PolicyNetwork
-from src.config import N_PLAYERS, GAME_DURATION
+from src.config import N_PLAYERS, GAME_DURATION, SIGMA_MULTIPLIER
 from src.visualization import states_to_mp4
 
 VIDEO_PREFIX = f"v2_torch_soccer_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -41,13 +41,12 @@ def save_model_to_gcs(model_state_dict, model_name: str):
     return f"gs://{GCS_BUCKET}/{gcs_path}"
 
 # Hyperparameters
-SIGMA_MULTIPLIER = 0.5
 SAMPLE = True  # Whether to sample from the policy or use the mean
-BATCH_SIZE = 32  # Number of parallel environments to simulate
+BATCH_SIZE = 1024  # Number of parallel environments to simulate
 NUM_EPISODES = 10000
 GAMMA = 0.99
 RENDER_EVERY = NUM_EPISODES // 100
-LEARNING_RATE = 1e-4  # Reduced for more stable learning
+LEARNING_RATE = 5e-4  # Increased 5x for faster convergence with large batches
 
 T = GAME_DURATION
 
@@ -128,7 +127,7 @@ def train_self_play(policy_net: PolicyNetwork,
     """
     Train the policy network using self-play in batched environments.
     """
-    env = TorchSoccerEnv(batch_size=batch_size, device=device)
+    env = TorchSoccerEnv(batch_size=batch_size, device=device, episode_count=0)
 
     # Pre-create one-hot team identity tensors on the device
     team_a_id = torch.cat([
@@ -141,6 +140,8 @@ def train_self_play(policy_net: PolicyNetwork,
     ], dim=1)
 
     for episode in tqdm(range(num_episodes)):
+        # Update episode count for reward decay
+        env.episode_count = episode
         states = env.reset()
 
         log_probs_a_steps = []

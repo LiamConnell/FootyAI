@@ -18,23 +18,28 @@ from src.config import (
     BALL_START_POSITION, 
     MAX_VELOCITY, 
     MAX_KICK_FORCE,
-    RANDOM_INITIALIZATION
+    RANDOM_INITIALIZATION,
+    ENABLE_KICK_REWARD,
+    ENABLE_DISTANCE_REWARD,
+    REWARD_DECAY_EPISODES
 )
 
 CLOSENESS_REWARD_MULTIPLIER = 0.3
 KICK_MULTIPLIER = 0.5
 
 class TorchSoccerEnv:
-    def __init__(self, batch_size: int, device: str = "cpu"):
+    def __init__(self, batch_size: int, device: str = "cpu", episode_count: int = 0):
         """
         Initialize the soccer environment.
 
         Args:
             batch_size: Number of parallel environments to simulate
             device: Device to run computations on ("cpu" or "cuda")
+            episode_count: Current episode number for reward decay
         """
         self.batch_size = batch_size
         self.device = device
+        self.episode_count = episode_count
         # print(self.batch_size)
 
         # Pre-allocate state tensors
@@ -208,14 +213,26 @@ class TorchSoccerEnv:
         scored_mask = torch.logical_or(team1_scored, team2_scored)
         non_scoring_mask = (~scored_mask).float()
 
+        # Calculate reward decay factor
+        decay_factor = 1.0
+        if REWARD_DECAY_EPISODES is not None and REWARD_DECAY_EPISODES > 0:
+            decay_factor = max(0.0, 1.0 - (self.episode_count / REWARD_DECAY_EPISODES))
+
+        # Calculate distances (needed for tracking even if rewards disabled)
         avg_dist_team1 = torch.einsum('bn->b', team1_to_ball) / N_PLAYERS
         avg_dist_team2 = torch.einsum('bn->b', team2_to_ball) / N_PLAYERS
-        delta_dist_team1 = self.prev_avg_dist_team1 - avg_dist_team1
-        delta_dist_team2 = self.prev_avg_dist_team2 - avg_dist_team2
-        distance_shaping_reward = delta_dist_team1 - delta_dist_team2
-        reward.add_(distance_shaping_reward * CLOSENESS_REWARD_MULTIPLIER * non_scoring_mask)
 
-        reward.add_(((team1_kickers_count > 0).float() - (team2_kickers_count > 0).float()) * KICK_MULTIPLIER)
+        # Distance reward (ball proximity shaping)
+        if ENABLE_DISTANCE_REWARD:
+            delta_dist_team1 = self.prev_avg_dist_team1 - avg_dist_team1
+            delta_dist_team2 = self.prev_avg_dist_team2 - avg_dist_team2
+            distance_shaping_reward = delta_dist_team1 - delta_dist_team2
+            reward.add_(distance_shaping_reward * CLOSENESS_REWARD_MULTIPLIER * non_scoring_mask * decay_factor)
+
+        # Kick reward
+        if ENABLE_KICK_REWARD:
+            kick_reward = ((team1_kickers_count > 0).float() - (team2_kickers_count > 0).float()) * KICK_MULTIPLIER * decay_factor
+            reward.add_(kick_reward)
 
         # Update previous distances
         self.prev_avg_dist_team1.copy_(avg_dist_team1)

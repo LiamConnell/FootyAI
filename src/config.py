@@ -1,9 +1,15 @@
 # Game settings
 N_PLAYERS = 5
 MIN_KICKING_DISTANCE = 3
-GAME_DURATION = 90  # seconds
+GAME_DURATION = 180  # seconds (2x longer for complex strategy development)
 GAME_LENGTH = GAME_DURATION
 RANDOM_INITIALIZATION = True  # If True, randomize player starting positions each reset
+
+# Exploration and reward experiment settings
+SIGMA_MULTIPLIER = 1.0  # Action noise multiplier for exploration
+ENABLE_KICK_REWARD = False  # Whether to include kick bonus rewards
+ENABLE_DISTANCE_REWARD = True  # Whether to include ball proximity rewards
+REWARD_DECAY_EPISODES = 5000  # If set, decay distance/kick rewards to 0 over this many episodes
 
 # Physics settings
 MAX_VELOCITY = 2.0
